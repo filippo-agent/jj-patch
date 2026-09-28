@@ -1,4 +1,4 @@
-// jj-patch is a directory diff editor for Jujutsu.
+// jj-patch-interactive is a directory diff editor for Jujutsu.
 package main
 
 import (
@@ -10,26 +10,26 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/filippo-agent/jj-patch/internal/edit"
-	"github.com/filippo-agent/jj-patch/internal/prompt"
+	"github.com/filippo-agent/jj-patch-interactive/internal/edit"
+	"github.com/filippo-agent/jj-patch-interactive/internal/prompt"
 )
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "jj-patch:", err)
+		fmt.Fprintln(os.Stderr, "jj-patch-interactive:", err)
 		os.Exit(1)
 	}
 }
 
 func run(args []string, in io.Reader, out, errout io.Writer) error {
-	fs := flag.NewFlagSet("jj-patch", flag.ContinueOnError)
+	fs := flag.NewFlagSet("jj-patch-interactive", flag.ContinueOnError)
 	fs.SetOutput(errout)
 	output := fs.String("output", "", "write a three-directory edit to this directory instead of RIGHT")
 	noInstructions := fs.Bool("no-instructions", false, "treat JJ-INSTRUCTIONS as an ordinary file (use with jj's ui.diff-instructions=false)")
 	context := fs.String("context", "auto", "prompt context: auto, split, commit, diffedit, squash, restore, absorb, generic")
 	version := fs.Bool("version", false, "print version")
 	fs.Usage = func() {
-		fmt.Fprintln(errout, "Usage: jj-patch [--output OUTPUT] [--context CONTEXT] LEFT RIGHT\n\nA git-add-p-style diff editor for jj. Configure ui.diff-editor = \"jj-patch\".\nSelect changes with y/n; q saves selections; Q or EOF aborts without saving.")
+		fmt.Fprintln(errout, "Usage: jj-patch-interactive [--output OUTPUT] [--context CONTEXT] LEFT RIGHT\n\nA git-add-p-style diff editor for jj. Configure ui.diff-editor = \"jj-patch-interactive\".\nSelect changes with y/n; q saves selections; Q or EOF aborts without saving.")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -50,7 +50,7 @@ func run(args []string, in io.Reader, out, errout io.Writer) error {
 				}
 			}
 		}
-		fmt.Fprintln(out, "jj-patch", v)
+		fmt.Fprintln(out, "jj-patch-interactive", v)
 		return nil
 	}
 	if fs.NArg() != 2 {

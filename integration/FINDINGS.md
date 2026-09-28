@@ -1,12 +1,12 @@
 # Verification
 
-On September 28, 2026, [CI run 36432262103](https://github.com/filippo-agent/jj-patch/actions/runs/36432262103)
+On September 28, 2026, [CI run 36432262103](https://github.com/filippo-agent/jj-patch-interactive/actions/runs/36432262103)
 passed natively on **Linux and macOS** at
 `1fc3627f1f6ddb466ec2d2dc12cc434aac391eb8`:
 
 - `go test -race ./...`
 - `go vet ./...`
-- `go build -o jj-patch .`
+- `go build -o jj-patch-interactive .`
 - **208 real-jj integration tests on each platform**, including two controlling
   PTY cases and the complete two/three-directory × instructions-on/off matrix.
 

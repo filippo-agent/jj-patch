@@ -1,4 +1,4 @@
-# jj-patch
+# jj-patch-interactive
 
 A `git add -p`-style diff editor for [Jujutsu](https://jj-vcs.dev/).
 Walk through changes one hunk at a time, split them, search them, or edit a
@@ -9,14 +9,14 @@ patch in your editor. No staging area to manage.
 Requires Linux or macOS, Go 1.24.2 or newer, and Git on your `PATH`.
 
 ```sh
-go install github.com/filippo-agent/jj-patch@latest
+go install github.com/filippo-agent/jj-patch-interactive@latest
 ```
 
 Put Go's bin directory on your `PATH`, then add to your jj config:
 
 ```toml
 [ui]
-diff-editor = "jj-patch"
+diff-editor = "jj-patch-interactive"
 ```
 
 Use `jj split`, `jj diffedit`, `jj commit -i`, `jj squash -i`,
@@ -60,7 +60,7 @@ without instructions, use jj's command-scoped config:
 ```toml
 [[--scope]]
 --when.commands = ["split"]
-[--scope.merge-tools.jj-patch]
+[--scope.merge-tools.jj-patch-interactive]
 edit-args = ["--context", "split", "$left", "$right"]
 ```
 
@@ -74,8 +74,8 @@ The default edits jj's right-hand temporary directory. Three-directory
 editing is also supported:
 
 ```toml
-[merge-tools.jj-patch]
-program = "jj-patch"
+[merge-tools.jj-patch-interactive]
+program = "jj-patch-interactive"
 edit-args = ["--output", "$output", "$left", "$right"]
 ```
 
@@ -92,7 +92,7 @@ adding or editing a file whose contents imitate jj's generated instructions:
 ```toml
 [ui]
 diff-instructions = false
-[merge-tools.jj-patch]
+[merge-tools.jj-patch-interactive]
 edit-args = ["--no-instructions", "$left", "$right"]
 ```
 

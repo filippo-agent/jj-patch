@@ -40,7 +40,7 @@ func TestUsage(t *testing.T) {
 		if err := run(args, strings.NewReader(""), &out, &out); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(out.String(), "jj-patch") {
+		if !strings.Contains(out.String(), "jj-patch-interactive") {
 			t.Fatal(out.String())
 		}
 	}

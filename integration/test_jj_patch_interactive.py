@@ -1,7 +1,7 @@
-"""Black-box tests: real jj invokes the real jj-patch, never a fake editor.
+"""Black-box tests: real jj invokes the real jj-patch-interactive, never a fake editor.
 
 Run: python3 -m unittest discover -s integration -v
-JJ_PATCH_BIN and JJ_BIN may override the executables. No third-party modules.
+JJ_PATCH_INTERACTIVE_BIN and JJ_BIN may override the executables. No third-party modules.
 """
 from __future__ import annotations
 
@@ -21,10 +21,10 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCH = Path(os.environ.get("JJ_PATCH_BIN", str(ROOT / "jj-patch"))).resolve()
+PATCH = Path(os.environ.get("JJ_PATCH_INTERACTIVE_BIN", str(ROOT / "jj-patch-interactive"))).resolve()
 JJ = os.environ.get("JJ_BIN") or shutil.which("jj") or "jj"
 GIT = shutil.which("git") or "git"
-TIMEOUT = int(os.environ.get("JJ_PATCH_TEST_TIMEOUT", "30"))
+TIMEOUT = int(os.environ.get("JJ_PATCH_INTERACTIVE_TEST_TIMEOUT", "30"))
 REGULAR = "100644"
 BASE = {"a.txt": (REGULAR, b"alpha old\n"), "b.txt": (REGULAR, b"beta old\n"),
         "untouched.txt": (REGULAR, b"must survive\n")}
@@ -36,7 +36,7 @@ SECOND = {**BASE, "b.txt": FULL["b.txt"]}
 def setUpModule():
     # A missing build is an error, not a misleading all-green skipped suite.
     if not PATCH.is_file() or not os.access(PATCH, os.X_OK):
-        raise RuntimeError(f"Build jj-patch first or set JJ_PATCH_BIN (missing executable: {PATCH})")
+        raise RuntimeError(f"Build jj-patch-interactive first or set JJ_PATCH_INTERACTIVE_BIN (missing executable: {PATCH})")
 
 
 class RepositoryCase(unittest.TestCase):
@@ -45,7 +45,7 @@ class RepositoryCase(unittest.TestCase):
     colocated = False
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix="jj-patch-integration-")
+        self.tmp = tempfile.TemporaryDirectory(prefix="jj-patch-interactive-integration-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.repo = self.root / "repo"
@@ -86,10 +86,10 @@ class RepositoryCase(unittest.TestCase):
         self.config.write_text(
             '[user]\nname = "Integration Test"\nemail = "test@example.invalid"\n'
             '[ui]\ncolor = "never"\npaginate = "never"\neditor = "false"\n'
-            'diff-editor = "jj-patch"\n' +
+            'diff-editor = "jj-patch-interactive"\n' +
             ('' if self.instructions else 'diff-instructions = false\n') +
             '[snapshot]\nmax-new-file-size = "10MiB"\n'
-            '[merge-tools.jj-patch]\nprogram = ' + json.dumps(str(PATCH)) + '\n'
+            '[merge-tools.jj-patch-interactive]\nprogram = ' + json.dumps(str(PATCH)) + '\n'
             'edit-invocation-mode = "dir"\nedit-args = ' + json.dumps(args) + '\n')
 
     def run_process(self, args, *, input=b"", cwd=None, check=True):
@@ -390,7 +390,7 @@ class WorkflowTests:
         ]
         for command in commands:
             with self.subTest(command=command):
-                self.assert_cancelled([*command, "--tool", "jj-patch"], b"Q\n")
+                self.assert_cancelled([*command, "--tool", "jj-patch-interactive"], b"Q\n")
 
     def test_added_only_nested_empty_binary_symlink_executable_accept(self):
         added = {"nested/deep/text.txt": (REGULAR, b"added text\n"),
@@ -572,7 +572,7 @@ class AdditionalTests(RepositoryCase):
                 'pick = ["split"]\n'
                 '[[--scope]]\n'
                 '--when.commands = ["split"]\n'
-                '[--scope.merge-tools.jj-patch]\n'
+                '[--scope.merge-tools.jj-patch-interactive]\n'
                 'edit-args = ["--context", "split", "$left", "$right"]\n'
             )
 

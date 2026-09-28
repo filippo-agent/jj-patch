@@ -1,4 +1,4 @@
-module github.com/filippo-agent/jj-patch
+module github.com/filippo-agent/jj-patch-interactive
 
 go 1.24.2
 

@@ -71,7 +71,7 @@ mv "$2.next" "$2"
 	if string(got) != "edited\n" {
 		t.Fatalf("result = %q", got)
 	}
-	matches, err := filepath.Glob(filepath.Join(dir, "jj-patch-hunk-*"))
+	matches, err := filepath.Glob(filepath.Join(dir, "jj-patch-interactive-hunk-*"))
 	if err != nil || len(matches) != 0 {
 		t.Fatalf("temporary edit files not removed: %v, %v", matches, err)
 	}

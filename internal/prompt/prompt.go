@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/filippo-agent/jj-patch/internal/edit"
+	"github.com/filippo-agent/jj-patch-interactive/internal/edit"
 )
 
 // ErrAbort means that the user canceled, or input ended before selection was

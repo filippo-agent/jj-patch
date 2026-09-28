@@ -69,5 +69,5 @@ jobs:
           git --version
       - run: go test -race ./...
       - run: go vet ./...
-      - run: go build -o jj-patch .
+      - run: go build -o jj-patch-interactive .
       - run: python3 -m unittest discover -s integration -v

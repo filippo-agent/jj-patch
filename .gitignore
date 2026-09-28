@@ -1,4 +1,4 @@
-/jj-patch
+/jj-patch-interactive
 __pycache__/
 *.test
 /coverage.out

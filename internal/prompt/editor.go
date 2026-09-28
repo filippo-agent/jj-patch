@@ -8,7 +8,7 @@ import (
 )
 
 func (p *prompt) editCurrent() (bool, error) {
-	file, err := os.CreateTemp("", "jj-patch-hunk-*.diff")
+	file, err := os.CreateTemp("", "jj-patch-interactive-hunk-*.diff")
 	if err != nil {
 		p.printf("Cannot create edit file: %s\n", printable(err.Error()))
 		return false, nil
@@ -42,7 +42,7 @@ func (p *prompt) editCurrent() (bool, error) {
 	for {
 		// The editor is a user-supplied shell command (possibly with arguments).
 		// The temporary path is never interpolated into shell source.
-		cmd := exec.Command("sh", "-c", editor+` "$1"`, "jj-patch-editor", path)
+		cmd := exec.Command("sh", "-c", editor+` "$1"`, "jj-patch-interactive-editor", path)
 		cmd.Stdin = p.input
 		cmd.Stdout = p.out
 		cmd.Stderr = p.out

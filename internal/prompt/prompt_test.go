@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/filippo-agent/jj-patch/internal/edit"
+	"github.com/filippo-agent/jj-patch-interactive/internal/edit"
 )
 
 func sample() *edit.Session {

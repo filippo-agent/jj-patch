@@ -4,17 +4,17 @@
 # From the repository root, once the new binary has been built:
 python3 -m unittest discover -s integration -v
 # Or test a separately built executable:
-JJ_PATCH_BIN=/absolute/path/to/jj-patch \
+JJ_PATCH_INTERACTIVE_BIN=/absolute/path/to/jj-patch-interactive \
 JJ_BIN=/path/to/jj \
 python3 -m unittest discover -s integration -v
 # A narrow smoke test:
-python3 -m unittest integration.test_jj_patch.TwoDirectoryTests.test_diffedit_partial -v
+python3 -m unittest integration.test_jj_patch_interactive.TwoDirectoryTests.test_diffedit_partial -v
 ```
 
-Python's standard library only; requires real `jj`, `git`, and a built `jj-patch`.
-`JJ_PATCH_BIN` defaults to the repository's `./jj-patch`, independent of cwd.
+Python's standard library only; requires real `jj`, `git`, and a built `jj-patch-interactive`.
+`JJ_PATCH_INTERACTIVE_BIN` defaults to the repository's `./jj-patch-interactive`, independent of cwd.
 `JJ_BIN` defaults to `jj` resolved on PATH.
-`JJ_PATCH_TEST_TIMEOUT` overrides the per-process/PTY timeout (30 seconds).
+`JJ_PATCH_INTERACTIVE_TEST_TIMEOUT` overrides the per-process/PTY timeout (30 seconds).
 A missing binary is an error, **not a skip**. Tests do not build a moving source
 checkout and do not edit the implementation. No fake diff editor is substituted.
 
@@ -26,9 +26,9 @@ by the harness or edited. The test tool config is:
 
 ```toml
 [ui]
-diff-editor = "jj-patch"
-[merge-tools.jj-patch]
-program = "/absolute/path/to/jj-patch"
+diff-editor = "jj-patch-interactive"
+[merge-tools.jj-patch-interactive]
+program = "/absolute/path/to/jj-patch-interactive"
 edit-invocation-mode = "dir"
 edit-args = ["$left", "$right"]
 # Three-directory variant:
@@ -48,7 +48,7 @@ globally forcing the split prompt for every workflow:
 ```toml
 [[--scope]]
 --when.commands = ["split"]
-[--scope.merge-tools.jj-patch]
+[--scope.merge-tools.jj-patch-interactive]
 edit-args = ["--context", "split", "$left", "$right"]
 ```
 
@@ -90,7 +90,7 @@ the actual jj transport, not manually constructed substitutes.
 
 Other commands such as `resolve` invoke **merge** editors (file arguments and a
 different protocol); `diff`/`show` invoke read-only diff generators. `arrange`
-does not use this external diff-editor entry point. They are not jj-patch
+does not use this external diff-editor entry point. They are not jj-patch-interactive
 directory-diff-editor workflows. Noninteractive fileset selection by itself
 does not invoke an editor except `diffedit`.
 
@@ -108,7 +108,7 @@ Every `WorkflowTests` case runs in all four combinations:
 - `Q`, immediate EOF, `y` then `Q`, and `y` then EOF for all six families and
   parallel split: nonzero status, unchanged working-copy commit ID, entire
   visible revision graph, revision tree, and disk contents.
-- `--tool jj-patch` implies interactive operation even without `-i`.
+- `--tool jj-patch-interactive` implies interactive operation even without `-i`.
 - Added-only changes: nested paths, empty file, NUL/non-UTF8 binary, executable,
   symlink and dangling symlink, whitespace/tab/Unicode filename, no final LF.
   Rejecting added-only changes must remove every added file from the result.

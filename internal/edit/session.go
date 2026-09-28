@@ -161,7 +161,7 @@ func OpenWithOptions(left, right, output string, options Options) (_ *Session, e
 			s.Instructions = string(e.data)
 		}
 	}
-	s.temp, err = os.MkdirTemp("", "jj-patch-diff-")
+	s.temp, err = os.MkdirTemp("", "jj-patch-interactive-diff-")
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +348,7 @@ func (s *Session) Write() error {
 	if err := s.outputUnchanged(); err != nil {
 		return err
 	}
-	stage, err := os.MkdirTemp(filepath.Dir(s.output), ".jj-patch-publish-")
+	stage, err := os.MkdirTemp(filepath.Dir(s.output), ".jj-patch-interactive-publish-")
 	if err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ original PRs unchanged.
 | [1](https://github.com/cwarden/git-add--interactive/issues/1) Undo | **Open.** Undo accidental decisions, including `d`. | **Partial:** `J/K` and `g` revisit decided hunks across files while the selection session remains active. No dedicated undo/history command; session abort discards all choices. |
 | [2](https://github.com/cwarden/git-add--interactive/issues/2) Single key | **Open.** Honor `interactive.singleKey` or equivalent. | **Explicitly unimplemented/deferred.** Commands require Enter. Neither raw single-key mode nor Git's configuration setting is supported. |
 | [3](https://github.com/cwarden/git-add--interactive/issues/3) jj editor | **Open.** Requests a native jj diff-editor; links a temporary-Git wrapper. | Directory snapshots, optional third output, explicit context override, and six-context instruction recognition replace real-index staging. Git is used only for isolated `diff --no-index`, not commits or index mutation. |
-| [4](https://github.com/cwarden/git-add--interactive/issues/4) `go install` | **Open.** Avoid requiring a source clone. | README documents direct installation with `go install github.com/filippo-agent/jj-patch@latest`; no source clone is needed. |
+| [4](https://github.com/cwarden/git-add--interactive/issues/4) `go install` | **Open.** Avoid requiring a source clone. | README documents direct installation with `go install github.com/filippo-agent/jj-patch-interactive@latest`; no source clone is needed. |
 | [5](https://github.com/cwarden/git-add--interactive/issues/5) Git does not pick it up | **Open.** Git 2.48.1 invokes its builtin despite the documented exec-path setup; aliases/shims discussed. | Deliberately **not** a replacement for Git's builtin. Configure jj to invoke this editor directly; no Git binary wrapper. |
 | [6](https://github.com/cwarden/git-add--interactive/issues/6) Checkout while staging | **Open.** Discard a debug hunk while reviewing staging. | Not implemented as a mixed destructive action. Here `n` excludes a delta from the result; whether it stays elsewhere or is discarded depends on the jj command. Use `jj restore -i` for restoration. |
 | [7](https://github.com/cwarden/git-add--interactive/pull/7) Empty context editing | **Closed-unmerged**, superseded by #9. | Edited patch processing preserves whitespace-only context. An empty/comments-only edit cancels that edit, not the session. |
@@ -80,7 +80,7 @@ flow, not new operation metadata ([main invocation](https://github.com/jj-vcs/jj
 - Selector-based commands first preserve unmatched paths from left and skip an
   empty candidate diff. Completely new paths outside the compared sparse set
   may be ignored by jj even if created by an editor.
-- jj also supports `edit-invocation-mode="file-by-file"`; **jj-patch supports
+- jj also supports `edit-invocation-mode="file-by-file"`; **jj-patch-interactive supports
   directory mode only**. External diff viewing and `jj resolve` use separate
   `diff-args`/`merge-args` contracts, not this one.
 
@@ -172,7 +172,7 @@ writers after the final validation check.
 Source-inspected unit tests cover selection/edit/cancellation, CRLF, empty and
 binary files, modes, symlinks, type/path collisions, Git-environment isolation,
 output changes, safe terminal rendering and shared-input regression. The
-[real-jj integration suite](../integration/test_jj_patch.py) covers all six
+[real-jj integration suite](../integration/test_jj_patch_interactive.py) covers all six
 families, two/three-directory transports, instructions on/off, relocation,
 multi-source squash, absorb's unassignable changes, and colocated-repository
 safety. [CI](../.github/workflows/test.yml) defines Linux/macOS runs against pinned

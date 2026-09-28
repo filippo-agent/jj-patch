@@ -1,6 +1,6 @@
 .PHONY: build test integration check
 build:
-	go build -o jj-patch .
+	go build -o jj-patch-interactive .
 test:
 	go test -race ./...
 integration: build
