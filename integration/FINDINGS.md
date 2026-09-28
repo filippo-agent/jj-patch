@@ -1,5 +1,23 @@
 # Verification
 
+## Unicode rendering
+
+[CI run 36447749510](https://github.com/filippo-agent/jj-patch-interactive/actions/runs/36447749510)
+passed on native Linux and macOS at
+`b9d961f0e1c288eeba5e98ad6cdd72cd07c06215`: Go race tests, vet, build, and
+**218 real-jj integration tests per platform**. Colored PTY cases verify the
+fixed renderer-owned SGR allowlist, background warnings and diff-color restoration;
+plain and `NO_COLOR` cases verify that no ANSI sequences are emitted.
+Source bytes remain unchanged after selection.
+
+Additional unit tests cover every C0/C1 control, invalid UTF-8, default-ignorable
+characters, combining-mark boundaries, raw filename quoting, and flag/command
+diagnostics. Unicode 18.0.0 table checks cover every code point and are identical
+on Go 1.24.2 and Go 1.27.1. The renderer fuzz target exercises arbitrary bytes in
+both diff text and quoted fields; local fuzz runs found no failure.
+
+## Initial directory-editing baseline
+
 On September 28, 2026, [CI run 36432262103](https://github.com/filippo-agent/jj-patch-interactive/actions/runs/36432262103)
 passed natively on **Linux and macOS** at
 `1fc3627f1f6ddb466ec2d2dc12cc434aac391eb8`:
