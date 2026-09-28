@@ -124,6 +124,11 @@ Every `WorkflowTests` case runs in all four combinations:
 - Empty `diffedit` succeeds without input.
 - Tab-indented XML and Makefile recipes render with real tabs, not `\t`
   escapes; selected file contents remain byte-for-byte identical.
+- Terminal-hostile text (without NUL) is accepted and rejected in all four
+  transports with exact blob/disk byte comparisons. Invalid UTF-8, CR/BEL/DEL,
+  raw and UTF-8 C1, default-ignorable Unicode, and OSC clipboard/hyperlink,
+  color, and cursor commands must become visible escapes. Ordinary Chinese
+  and printable Cyrillic/Greek confusables remain their original glyphs.
 - Deletion of a real `JJ-INSTRUCTIONS`: generated-help collisions fail safely;
   disabling jj's instructions permits both accepting and rejecting the deletion.
 
@@ -137,6 +142,14 @@ two separate editor invocations in a multi-source squash. A separate piped
 multi-source test detects an editor accidentally reading ahead into the next
 invocation's input. Other cases use
 `subprocess.run(input=...)` to exercise redirected stdin and EOF.
+
+Dedicated terminal-safety PTY cases unset `NO_COLOR` and set `TERM=xterm` to
+check black-on-yellow confusable glyphs, white-on-red generated escapes, and
+restoration of added-line green after a warning. Only the exact renderer SGR
+allowlist and TTY CR/LF/tab layout controls are permitted. A second PTY case
+checks that both nonempty and empty `NO_COLOR` suppress all ANSI without
+losing readable glyphs or visible escapes. Replies wait for the prompt; the
+hostile fixture is the only changed file, so `A` cannot bypass its display.
 
 Assertions compare entire trees as `{path: (Git mode, raw blob bytes)}` using
 read-only `git ls-tree`/`cat-file` against jj-selected revisions, not just exit

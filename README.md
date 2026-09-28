@@ -52,6 +52,24 @@ and type changes are selected as whole changes. Renames appear as a deletion
 and an addition. Git is used privately to calculate diffs, not to stage or
 commit in your repository.
 
+### Unicode and terminal safety
+
+File contents cannot supply terminal escape sequences. Tabs and newlines retain
+their usual layout; other controls, invalid UTF-8, and non-displayable characters
+are shown as escape sequences, with a **red background** when color is enabled.
+
+Printable Unicode confusables keep their original glyphs and get a **yellow
+background**—for example, Cyrillic `а` is highlighted, not changed into `\u0430`.
+Literal escape sequences already present in the source are not warning-colored.
+These are display changes only; the selected file bytes are unchanged.
+
+Warnings use pinned Unicode 18.0.0 data, not language-specific parsing.
+Confusable highlighting is a context-free hint, not a guarantee against every
+font-dependent look-alike. See [the Unicode policy](docs/unicode-data.md).
+Colors are disabled for redirected output, `TERM=dumb`, or `NO_COLOR`.
+
+### Contextual prompts
+
 Prompts use jj's edit instructions when available: “Include this hunk in
 the first change?” for splitting, for example. If instructions are disabled
 or unrecognized, the prompt is generic. To set a split-specific prompt even
@@ -114,3 +132,6 @@ Forked from Christian G. Warden's
 [git-add--interactive](https://github.com/cwarden/git-add--interactive),
 a Go implementation of Git's interactive patch UI. MIT licensed; see
 [LICENSE](LICENSE).
+
+Unicode data is distributed under the
+[Unicode License V3](licenses/Unicode-3.0.txt).

@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/filippo-agent/jj-patch-interactive/internal/edit"
 )
@@ -233,12 +231,7 @@ func (p *prompt) show(visible []position) {
 			state = "included"
 		}
 	}
-	header := "--- " + strconv.Quote(file.Path)
-	if file.Kind != "" {
-		header += " (" + printable(file.Kind) + ")"
-	}
-	header += " [" + state + "]"
-	p.printf("\n%s\n", p.styled("1", header))
+	p.printf("\n%s\n", p.fileHeading(file.Path, file.Kind, state))
 	p.showDiff(hunk.Text)
 	hasUndecided := false
 	for _, pos := range visible {
@@ -252,7 +245,7 @@ func (p *prompt) show(visible []position) {
 		context = " " + printable(p.context)
 	}
 	p.printf("(%d/%d) %s [y,n,q,Q,a,d,A,s,S,e,j,k,J,K,g,/,G,?] ",
-		index+1, len(visible), p.styled("1;33", "Include this hunk"+context+"?"))
+		index+1, len(visible), p.styled(stylePrompt, "Include this hunk"+context+"?"))
 }
 
 func (p *prompt) run() error {
@@ -350,7 +343,7 @@ func (p *prompt) run() error {
 					p.advance()
 				}
 			default:
-				p.printf("Unknown command %s. Type ? for help.\n", strconv.Quote(line))
+				p.printf("Unknown command %s. Type ? for help.\n", p.quoted(line))
 			}
 		}
 	}
@@ -437,36 +430,6 @@ func (p *prompt) split(pos position) bool {
 		p.current.hunk += children - 1
 	}
 	return true
-}
-
-// printable preserves line structure, but never emits terminal control codes,
-// invalid UTF-8, or invisible formatting controls from a patch or an error.
-func printable(s string) string {
-	return printableText(s, false)
-}
-
-// printableDiff also preserves horizontal tabs so source indentation is rendered
-// at the terminal's normal tab stops, rather than as distracting "\t" escapes.
-// Only display text changes; selection and editing retain the original bytes.
-func printableDiff(s string) string {
-	return printableText(s, true)
-}
-
-func printableText(s string, allowTabs bool) string {
-	var result strings.Builder
-	for len(s) > 0 {
-		r, size := utf8.DecodeRuneInString(s)
-		if r == utf8.RuneError && size == 1 {
-			fmt.Fprintf(&result, "\\x%02x", s[0])
-		} else if r == '\n' || (allowTabs && r == '\t') || unicode.IsPrint(r) {
-			result.WriteRune(r)
-		} else {
-			quoted := strconv.QuoteRuneToASCII(r)
-			result.WriteString(quoted[1 : len(quoted)-1])
-		}
-		s = s[size:]
-	}
-	return result.String()
 }
 
 const help = `y - include this hunk (also changes an earlier decision)

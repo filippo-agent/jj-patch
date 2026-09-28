@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -24,7 +23,7 @@ func TestColorDiffSanitizesBeforeStyling(t *testing.T) {
 	}
 	// Strip precisely the styles produced by the renderer; patch-provided ANSI
 	// remains printable escaped text, not an executable terminal sequence.
-	unstyle := regexp.MustCompile("\x1b\\[(?:31|32|36|0)m")
+	unstyle := rendererSGR
 	if got := unstyle.ReplaceAllString(colored.String(), ""); got != plain.String() {
 		t.Fatalf("styled output differs from safe plain output: %q != %q", got, plain.String())
 	}

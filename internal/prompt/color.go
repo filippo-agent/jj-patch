@@ -17,34 +17,15 @@ func colorEnabled(out io.Writer) bool {
 	return ok && isTerminal(fd.Fd())
 }
 
-// The caller must sanitize untrusted text before applying our own ANSI styles.
-func (p *prompt) styled(code, safeText string) string {
-	if !p.color || safeText == "" {
-		return safeText
-	}
-	return "\x1b[" + code + "m" + safeText + "\x1b[0m"
+// Styling never bypasses sanitization, even for labels and filenames.
+func (p *prompt) styled(style textStyle, text string) string {
+	r := textRenderer{color: p.color, base: style}
+	r.scan(text, false)
+	return r.finish()
 }
 
 func (p *prompt) showDiff(text string) {
-	for _, line := range strings.SplitAfter(text, "\n") {
-		if line == "" {
-			continue
-		}
-		hasNewline := strings.HasSuffix(line, "\n")
-		content := printableDiff(strings.TrimSuffix(line, "\n"))
-		switch {
-		case strings.HasPrefix(line, "@@"):
-			content = p.styled("36", content)
-		case strings.HasPrefix(line, "+"):
-			content = p.styled("32", content)
-		case strings.HasPrefix(line, "-"):
-			content = p.styled("31", content)
-		}
-		p.printf("%s", content)
-		if hasNewline {
-			p.printf("\n")
-		}
-	}
+	p.printf("%s", renderDiff(text, p.color))
 	if !strings.HasSuffix(text, "\n") {
 		p.printf("\n")
 	}

@@ -32,6 +32,27 @@ FULL = {**BASE, "a.txt": (REGULAR, b"alpha new\n"), "b.txt": (REGULAR, b"beta ne
 FIRST = {**BASE, "a.txt": FULL["a.txt"]}
 SECOND = {**BASE, "b.txt": FULL["b.txt"]}
 
+# No NUL: this must reach the text renderer, not the indivisible binary UI.
+# All content is in one added file, so A cannot save before displaying it.
+# U+4E2D/U+6587 have no source entries in Unicode 18 confusables.txt;
+# U+0430/U+0391 do. Preserve the latter glyphs rather than substituting skeletons.
+TERMINAL_SOURCE = (
+    "readable 中文 confusable а Α hidden \u034f \ufe0f \u200d \u202e ".encode()
+    + b"\tcontrols \r\a\x7f raw-C1 \x9b utf8-C1 \xc2\x9b invalid \xff\xc0\xaf "
+    + b"clipboard \x1b]52;c;VEVTVA==\a "
+    + b"hyperlink \x1b]8;;https://example.invalid/\x1b\\link\x1b]8;;\x1b\\ "
+    + b"color \x1b[31m cursor \x1b[2J\x1b[H end\n"
+)
+TERMINAL_ESCAPES = (
+    rb"\u034f", rb"\ufe0f", rb"\u200d", rb"\u202e",
+    rb"\r", rb"\a", rb"\x7f", rb"\x9b", rb"\u009b",
+    rb"\xff", rb"\xc0", rb"\xaf",
+    rb"\x1b]52;c;VEVTVA==\a",
+    rb"\x1b]8;;https://example.invalid/\x1b\link",
+    rb"\x1b[31m", rb"\x1b[2J", rb"\x1b[H",
+)
+RENDERER_SGR = re.compile(rb"\x1b\[(?:0|1|1;33|31|32|36|30;43|97;41)m")
+
 
 def setUpModule():
     # A missing build is an error, not a misleading all-green skipped suite.
@@ -205,6 +226,33 @@ class RepositoryCase(unittest.TestCase):
         self.assertEqual(self.disk_tree(), before_disk)
         self.assertEqual(self.jj("log", "--no-graph", "-r", "all()", "-T",
                                  'commit_id ++ "\\n"').stdout, before_graph)
+
+    def terminal_fixture(self):
+        expected = {**BASE, "terminal-source.txt": (REGULAR, TERMINAL_SOURCE)}
+        self.write_tree(expected)
+        self.snapshot()
+        return expected
+
+    def assert_terminal_safe(self, output, *, colored=False, tty=False):
+        # Strip only the exact renderer-generated SGR allowlist. Every other
+        # ESC (OSC, CSI, ST, or an unrecognized SGR) then fails below.
+        plain = RENDERER_SGR.sub(b"", output) if colored else output
+        text = plain.decode("utf-8", errors="strict")
+        allowed = "\t\n\r" if tty else "\t\n"
+        self.assertFalse(
+            [repr(c) for c in text
+             if (ord(c) < 32 and c not in allowed) or 127 <= ord(c) <= 159],
+            repr(output),
+        )
+        for hidden in ("\u034f", "\ufe0f", "\u200d", "\u202e"):
+            self.assertNotIn(hidden, text)
+        for escaped in TERMINAL_ESCAPES:
+            self.assertIn(escaped, plain)
+        self.assertIn("readable 中文 confusable а Α".encode(), plain)
+        self.assertIn(b"\tcontrols ", plain)
+        self.assertNotIn(rb"\u0430", plain)
+        self.assertNotIn(rb"\u0391", plain)
+        return plain
 
 
 class WorkflowTests:
@@ -433,6 +481,17 @@ class WorkflowTests:
         self.assertNotIn(b"+\\t\\t<key>", result.stdout)
         self.assert_tree({**BASE, **files}, disk=True)
         self.edit("diffedit", input=b"q\n")
+        self.assert_tree(BASE, disk=True)
+
+    def test_terminal_safe_source_accept_and_reject_exact_bytes(self):
+        expected = self.terminal_fixture()
+        # With pipes, color must stay off even without NO_COLOR.
+        self.env.pop("NO_COLOR", None)
+        result = self.edit("diffedit", input=b"A\n")
+        self.assert_terminal_safe(result.stdout)
+        self.assert_tree(expected, disk=True)
+        result = self.edit("diffedit", input=b"q\n")
+        self.assert_terminal_safe(result.stdout)
         self.assert_tree(BASE, disk=True)
 
     def test_deletions_accept_all(self):
@@ -754,6 +813,37 @@ class AdditionalTests(RepositoryCase):
         self._pty_edit(["diffedit"], [b"A\n"])
         self.assert_tree(FULL, disk=True)
         self.assertEqual(self.commit_id(), self.start_id)
+
+    @unittest.skipUnless(os.name == "posix", "requires a POSIX PTY")
+    def test_terminal_safe_colored_pty_preserves_source_bytes(self):
+        expected = self.terminal_fixture()
+        self.env.pop("NO_COLOR", None)
+        self.env["TERM"] = "xterm"
+        output = self._pty_edit(["diffedit"], [b"A\n"])
+        self.assert_terminal_safe(output, colored=True, tty=True)
+        for glyph in ("а", "Α"):
+            self.assertIn(b"\x1b[30;43m" + glyph.encode() + b"\x1b[0m", output)
+        for escaped in (rb"\u034f", rb"\ufe0f", rb"\u200d", rb"\u202e",
+                        rb"\x1b", rb"\xff"):
+            self.assertIn(b"\x1b[97;41m" + escaped, output)
+        # A warning's reset must restore the surrounding added-line green.
+        self.assertIn(b"\x1b[0m\x1b[32m", output)
+        self.assertIn("中文".encode(), output)
+        self.assertNotIn(b"\x1b[30;43m" + "中文".encode(), output)
+        self.assert_tree(expected, disk=True)
+
+    @unittest.skipUnless(os.name == "posix", "requires a POSIX PTY")
+    def test_terminal_safe_no_color_pty_keeps_glyphs_and_escapes(self):
+        expected = self.terminal_fixture()
+        self.env["TERM"] = "xterm"
+        # Presence, including the empty string, disables color on a real TTY.
+        for value in ("1", ""):
+            with self.subTest(NO_COLOR=value):
+                self.env["NO_COLOR"] = value
+                output = self._pty_edit(["diffedit"], [b"A\n"])
+                self.assert_terminal_safe(output, tty=True)
+                self.assertNotIn(b"\x1b", output)
+                self.assert_tree(expected, disk=True)
 
     @unittest.skipUnless(os.name == "posix", "requires a POSIX PTY")
     def test_squash_multiple_sources_with_interactive_pty(self):

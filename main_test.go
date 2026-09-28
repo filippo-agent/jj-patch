@@ -78,3 +78,21 @@ func TestInstructionOptOut(t *testing.T) {
 		t.Fatalf("rejected addition still exists: %v", err)
 	}
 }
+
+func TestFlagDiagnosticsCannotEmitControls(t *testing.T) {
+	for _, arg := range []string{"--bad\x1b[2J", "--bad\u034f\ufe0f\u2800", "--bad\xff"} {
+		var out bytes.Buffer
+		if err := run([]string{arg}, strings.NewReader(""), &out, &out); err == nil {
+			t.Fatal("invalid flag accepted")
+		}
+		got := out.String()
+		for _, raw := range []string{"\x1b", "\u034f", "\ufe0f", "\u2800", "\xff"} {
+			if strings.Contains(got, raw) {
+				t.Fatalf("flag diagnostics emitted raw unsafe bytes: %q", got)
+			}
+		}
+		if !strings.Contains(got, "Usage: jj-patch-interactive") {
+			t.Fatal("lost flag help")
+		}
+	}
+}
