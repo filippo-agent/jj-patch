@@ -10,7 +10,7 @@ import (
 )
 
 func TestColorDiffSanitizesBeforeStyling(t *testing.T) {
-	const text = "@@ -1,2 +1,2 @@\n-old\x1b[2J\n+new\x1b[31m\n context\n"
+	const text = "@@ -1,2 +1,2 @@\n-\told\x1b[2J\n+\tnew\x1b[31m\n \tcontext\n"
 	var colored, plain bytes.Buffer
 	(&prompt{out: &output{Writer: &colored}, color: true}).showDiff(text)
 	(&prompt{out: &output{Writer: &plain}}).showDiff(text)
@@ -28,8 +28,23 @@ func TestColorDiffSanitizesBeforeStyling(t *testing.T) {
 	if got := unstyle.ReplaceAllString(colored.String(), ""); got != plain.String() {
 		t.Fatalf("styled output differs from safe plain output: %q != %q", got, plain.String())
 	}
-	if plain.String() != printable(text) {
+	if plain.String() != printableDiff(text) {
 		t.Fatalf("plain rendering changed patch: %q", plain.String())
+	}
+	for _, line := range []string{"-\told", "+\tnew", " \tcontext"} {
+		if !strings.Contains(plain.String(), line) {
+			t.Fatalf("diff tab was escaped: %q", plain.String())
+		}
+	}
+}
+
+func TestDiffTabsAreDistinctFromLiteralEscapes(t *testing.T) {
+	text := "+\t\t<key>name</key>\t<!-- comment -->\n+literal\\ttext\n"
+	if got := printableDiff(text); got != text {
+		t.Fatalf("tabs or literal backslashes changed: %q", got)
+	}
+	if got := printable("metadata\tvalue"); got != `metadata\tvalue` {
+		t.Fatalf("metadata tab must remain escaped: %q", got)
 	}
 }
 

@@ -180,7 +180,7 @@ func TestMultipleInvocationsShareInput(t *testing.T) {
 
 func TestSafeOutput(t *testing.T) {
 	s := sample()
-	s.Files[0].Path = "bad\x1b]0;title\x07\nname\xff\u202e"
+	s.Files[0].Path = "bad\x1b]0;title\x07\nname\t\xff\u202e"
 	s.Files[0].Kind = "kind\x1b[2J"
 	s.Files[0].Hunks[0].Text = "line\x1b[2J\r\x00\t\x7f\u009b\u202e\xff\n"
 	var out bytes.Buffer
@@ -189,10 +189,13 @@ func TestSafeOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	for _, bad := range []string{"\x1b", "\x07", "\r", "\x00", "\t", "\x7f", "\u009b", "\u202e", "\xff"} {
+	for _, bad := range []string{"\x1b", "\x07", "\r", "\x00", "\x7f", "\u009b", "\u202e", "\xff"} {
 		if strings.Contains(got, bad) {
 			t.Fatalf("unsafe raw character %q in %q", bad, got)
 		}
+	}
+	if !strings.Contains(got, "\t") {
+		t.Fatal("source tab was escaped instead of displayed as indentation")
 	}
 	for _, escaped := range []string{`\x1b`, `\r`, `\t`, `\u202e`, `\xff`} {
 		if !strings.Contains(got, escaped) {

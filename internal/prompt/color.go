@@ -31,7 +31,7 @@ func (p *prompt) showDiff(text string) {
 			continue
 		}
 		hasNewline := strings.HasSuffix(line, "\n")
-		content := printable(strings.TrimSuffix(line, "\n"))
+		content := printableDiff(strings.TrimSuffix(line, "\n"))
 		switch {
 		case strings.HasPrefix(line, "@@"):
 			content = p.styled("36", content)

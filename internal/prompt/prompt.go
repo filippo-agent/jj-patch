@@ -442,12 +442,23 @@ func (p *prompt) split(pos position) bool {
 // printable preserves line structure, but never emits terminal control codes,
 // invalid UTF-8, or invisible formatting controls from a patch or an error.
 func printable(s string) string {
+	return printableText(s, false)
+}
+
+// printableDiff also preserves horizontal tabs so source indentation is rendered
+// at the terminal's normal tab stops, rather than as distracting "\t" escapes.
+// Only display text changes; selection and editing retain the original bytes.
+func printableDiff(s string) string {
+	return printableText(s, true)
+}
+
+func printableText(s string, allowTabs bool) string {
 	var result strings.Builder
 	for len(s) > 0 {
 		r, size := utf8.DecodeRuneInString(s)
 		if r == utf8.RuneError && size == 1 {
 			fmt.Fprintf(&result, "\\x%02x", s[0])
-		} else if r == '\n' || unicode.IsPrint(r) {
+		} else if r == '\n' || (allowTabs && r == '\t') || unicode.IsPrint(r) {
 			result.WriteRune(r)
 		} else {
 			quoted := strconv.QuoteRuneToASCII(r)

@@ -122,6 +122,8 @@ Every `WorkflowTests` case runs in all four combinations:
   abort preserves conflict. Compare explicit resolved-side `--from`, since a
   merge compared with its merged-parent tree can have no changes.
 - Empty `diffedit` succeeds without input.
+- Tab-indented XML and Makefile recipes render with real tabs, not `\t`
+  escapes; selected file contents remain byte-for-byte identical.
 - Deletion of a real `JJ-INSTRUCTIONS`: generated-help collisions fail safely;
   disabling jj's instructions permits both accepting and rejecting the deletion.
 

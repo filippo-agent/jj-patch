@@ -417,6 +417,24 @@ class WorkflowTests:
         self.edit("diffedit", input=b"q\n")
         self.assert_tree(BASE, disk=True)
 
+    def test_tabbed_source_display_and_exact_bytes(self):
+        files = {
+            "theme.xml": (REGULAR,
+                          b"\t\t<key>referenceHighlight</key>\t<!-- comment -->\n"
+                          b"\t\t<string>#5D4C00</string>\n"
+                          b"\t\t<key>literal\\t</key>\n"),
+            "Makefile": (REGULAR, b"all:\n\tprintf 'hello\\n'\n"),
+        }
+        self.write_tree({**BASE, **files})
+        self.snapshot()
+        result = self.edit("diffedit", input=b"y\ny\n")
+        self.assertIn(b"+\t\t<key>referenceHighlight</key>\t<!-- comment -->", result.stdout)
+        self.assertIn(b"+\tprintf 'hello\\n'", result.stdout)
+        self.assertNotIn(b"+\\t\\t<key>", result.stdout)
+        self.assert_tree({**BASE, **files}, disk=True)
+        self.edit("diffedit", input=b"q\n")
+        self.assert_tree(BASE, disk=True)
+
     def test_deletions_accept_all(self):
         self.write_tree({"untouched.txt": BASE["untouched.txt"]})
         self.snapshot()
