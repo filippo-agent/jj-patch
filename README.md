@@ -1,194 +1,113 @@
-# Git Add Interactive (Go Implementation)
+# jj-patch
 
-A Go port of Git's interactive add functionality, providing the same interface as `git add -i` and `git add -p`, with a few enhancements.
+A `git add -p`-style diff editor for [Jujutsu](https://jj-vcs.dev/).
+Walk through changes one hunk at a time, split them, search them, or edit a
+patch in your editor. No staging area to manage.
 
-![Demo](examples/demo.gif)
+## Install
 
-## Features
+Requires Linux or macOS, Go 1.24.2 or newer, and Git on your `PATH`.
 
-- **Interactive staging**: Select files and hunks to stage interactively
-- **Patch mode**: Review and selectively stage individual hunks with `y/n/s/e/q/a/d` commands
-- **Hunk operations**: Split hunks, manually edit hunks, navigate between hunks
-- **Multiple patch modes**: Support for stage, reset, checkout, stash, and worktree operations
-- **Git integration**: Full Git color configuration and repository support
-- **Terminal UI**: Color-coded interface with keyboard shortcuts
-
-## Enhancements Over Perl Version
-
-This Go implementation adds several powerful features beyond the original Perl script:
-
-### Global Filtering (G command)
-Filter hunks across all files using regex patterns:
-
-```
-G <regex>    # Set global filter to show only hunks matching pattern
-G            # Clear filter (interactive prompt for new pattern)
+```sh
+go install github.com/filippo-agent/jj-patch@latest
 ```
 
-**Example workflows:**
-- `G TODO` - Show only hunks containing "TODO" comments
-- `G import` - Focus on import statement changes
-- `G console\.log` - Find all debugging statements
+Put Go's bin directory on your `PATH`, then add to your jj config:
 
-### Auto-Splitting (S command)
-Automatically split all hunks to maximum granularity:
-```
-S    # Enable auto-splitting globally and split all hunks
+```toml
+[ui]
+diff-editor = "jj-patch"
 ```
 
-This recursively splits hunks until no further splitting is possible, giving you the finest possible control over what gets staged.
+Use `jj split`, `jj diffedit`, `jj commit -i`, `jj squash -i`, or
+`jj restore -i`, or `jj absorb -i` as usual.
 
-### Accept All (A command)
-Accept all hunks across all files (after filtering and splitting):
-```
-A    # Accept all visible hunks in all remaining files
-```
+## Picking changes
 
-**Powerful workflow combinations:**
-- `S` → `G <pattern>` → `A` - Split everything, filter by pattern, accept all matches
-- `G console\.log` → `A` - Quickly stage all debugging code across your entire changeset
+Nothing is selected initially. Answer **y** to include a change, **n** to
+leave it out. For `jj split`, selected hunks go into the first change;
+for `jj diffedit`, they are the changes to keep.
 
-### Enhanced Search and Navigation
-- **Local search (`/`)**: Search within current file without affecting global filter
-- **Status display**: Shows `[filter: pattern]` and `[auto-split]` indicators
-- **Cross-file filtering**: Global filters persist across all files in the session
+| Key | Action |
+| --- | --- |
+| `y` / `n` | Include / exclude this hunk |
+| `a` / `d` | Include / exclude the remaining hunks in this file |
+| `q` | Save selections so far; exclude undecided hunks |
+| `Q` | Abort without saving |
+| `s` / `S` | Split this hunk / enable automatic splitting |
+| `e` | Edit this hunk using `$VISUAL` or `$EDITOR` |
+| `j` / `k` | Next / previous undecided hunk |
+| `J` / `K` | Next / previous hunk, including decided ones |
+| `g` | Go to a hunk number |
+| `/` | Search visible hunks and paths across files |
+| `G` | Filter hunks by regex across files; empty pattern clears |
+| `A` | Include remaining hunks matching the filter across files, then save |
+| `?` | Help |
 
-## Installation
+Press Enter after a command. EOF and Ctrl-C abort; unlike `q`, they don't
+save a partial selection.
 
-### Build the Binary
-```bash
-go build .
-```
+Added files—including empty files—are selectable. Binary files, symlinks,
+and type changes are selected as whole changes. Renames appear as a deletion
+and an addition. Git is used privately to calculate diffs, not to stage or
+commit in your repository.
 
-### Install as Git Command (Optional)
-To use this implementation as the default `git add -i` and `git add -p`, you can install it to your Go bin directory and update your Git exec path:
+Prompts use jj's edit instructions when available: “Include this hunk in
+the first change?” for splitting, for example. If instructions are disabled
+or unrecognized, the prompt is generic. To set a split-specific prompt even
+without instructions, use jj's command-scoped config:
 
-```bash
-# Build and install to Go bin directory
-go build -o "$(go env GOPATH)/bin/git-add--interactive" .
-
-# Add Go bin to Git's exec path (add to your shell profile for persistence)
-export GIT_EXEC_PATH="$(go env GOPATH)/bin:$(git --exec-path)"
-```
-
-After setting this up, `git add -i` and `git add -p` will use the Go implementation instead of the Perl script.
-
-### Verify Installation
-```bash
-# Check which git-add--interactive is being used
-which git-add--interactive
-
-# Test interactive add
-git add -i
-
-# Test patch mode
-git add -p
+```toml
+[[--scope]]
+--when.commands = ["split"]
+[--scope.merge-tools.jj-patch]
+edit-args = ["--context", "split", "$left", "$right"]
 ```
 
-### Uninstall (Revert to Original)
-To revert back to the original Perl implementation:
+The accepted contexts are `auto` (default), `split`, `commit`, `diffedit`,
+`squash`, `restore`, `absorb`, and `generic`. jj controls placement when using
+`split --parallel` or relocation flags; “first change” means the selected change.
 
-```bash
-# Remove the Go binary from your Go bin
-rm "$(go env GOPATH)/bin/git-add--interactive"
+### Separate output directory
 
-# Reset Git exec path (remove from your shell profile too)
-unset GIT_EXEC_PATH
-# Or set it back to default
-export GIT_EXEC_PATH="$(git --exec-path)"
+The default edits jj's right-hand temporary directory. Three-directory
+editing is also supported:
+
+```toml
+[merge-tools.jj-patch]
+program = "jj-patch"
+edit-args = ["--output", "$output", "$left", "$right"]
 ```
 
-## Usage
+Use directory invocation (jj's default), not file-by-file mode.
 
-### Direct Usage
-```bash
-# Run directly
-./git-add--interactive
+### Instruction-file collisions
 
-# Or if installed as Git command
-git add -i
+Ordinary files named `JJ-INSTRUCTIONS` remain selectable. If you're adding one
+whose contents imitate jj's generated instructions, disable the heuristic:
+
+```toml
+[ui]
+diff-instructions = false
+[merge-tools.jj-patch]
+edit-args = ["--no-instructions", "$left", "$right"]
 ```
 
-This launches the main interactive menu with options:
-- `status` - Show paths with changes
-- `update` - Add working tree state to staged changes  
-- `revert` - Revert staged changes back to HEAD
-- `add untracked` - Add untracked files to staged changes
-- `patch` - Pick hunks and update selectively
-- `diff` - View diff between HEAD and index
-- `quit` - Exit the program
-- `help` - Show help
-
-### Patch Mode
-```bash
-# Direct usage
-./git-add--interactive --patch --
-./git-add--interactive --patch=stage --
-./git-add--interactive --patch=reset --
-./git-add--interactive --patch=checkout --
-
-# Or if installed as Git command
-git add -p              # Same as --patch
-git add --patch         # Stage mode
-git reset -p            # Reset mode  
-git checkout -p         # Checkout mode
-```
-
-Patch mode allows you to interactively select hunks with these commands:
-- `y` - Accept this hunk
-- `n` - Skip this hunk  
-- `q` - Quit; skip this hunk and remaining ones
-- `a` - Accept this hunk and all later hunks in the file
-- `d` - Skip this hunk and all later hunks in the file
-- `s` - Split the current hunk into smaller hunks
-- `e` - Manually edit the current hunk
-- `j/k` - Navigate to next/previous undecided hunk
-- `J/K` - Navigate to next/previous hunk
-- `g` - Go to a specific hunk number
-- `/` - Search for pattern in current file
-- `G` - Set global filter for all files (or clear with empty pattern)
-- `S` - Enable auto-splitting globally and split all hunks
-- `A` - Accept all hunks in all remaining files
-- `?` - Show help
-
-## Architecture
-
-The codebase is organized into these main packages:
-
-- `main.go` - Entry point and command-line parsing
-- `internal/git/` - Git repository interaction and operations
-  - `repository.go` - Git repository abstraction and command execution
-  - `status.go` - File status parsing and tracking  
-  - `patch.go` - Diff parsing and patch mode operations
-- `internal/ui/` - Interactive terminal interface
-  - `app.go` - Main application logic and menu system
-  - `patch.go` - Patch mode UI and hunk interaction
-
-## Testing
-
-Run the test suite:
-```bash
-go test ./...
-```
-
-Run tests with verbose output:
-```bash
-go test -v ./...
-```
+Command-scoped `--context` still works with instruction detection disabled.
 
 ## Development
 
-The code follows Go conventions and includes:
-- Comprehensive unit tests for core functionality
-- Git integration respecting user's color and configuration
-- Error handling for edge cases and invalid input
-- Support for all major patch modes and operations
+```sh
+make check       # Go tests, real jj integration tests, and go vet
+```
 
-## Compatibility
+The integration tests require `jj` on your `PATH`. See
+[integration/README.md](integration/README.md) for the exercised command and
+edge-case matrix, and [docs/review.md](docs/review.md) for upstream research.
 
-This implementation provides the same functionality as the original Perl `git-add--interactive` script, including:
-- All patch modes (stage, reset, checkout, stash, worktree variants)
-- Full hunk manipulation (splitting, editing, navigation)
-- Git color configuration support
-- Interactive selection with prefix matching
-- Range and comma-separated selections
+## Credits
+
+Forked from Christian G. Warden's
+[git-add--interactive](https://github.com/cwarden/git-add--interactive),
+a Go implementation of Git's interactive patch UI. MIT licensed; see
+[LICENSE](LICENSE).

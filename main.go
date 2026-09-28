@@ -1,269 +1,125 @@
+// jj-patch is a directory diff editor for Jujutsu.
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"runtime/debug"
 	"strings"
 
-	"github.com/cwarden/git-add--interactive/internal/git"
-	"github.com/cwarden/git-add--interactive/internal/ui"
+	"github.com/filippo-agent/jj-patch/internal/edit"
+	"github.com/filippo-agent/jj-patch/internal/prompt"
 )
 
 func main() {
-	patchMode, patchRevision, files, err := parseFlags()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+		fmt.Fprintln(os.Stderr, "jj-patch:", err)
 		os.Exit(1)
-	}
-
-	repo, err := git.NewRepository(".")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	app := ui.NewApp(repo)
-
-	if patchMode != "" {
-		if err := app.RunPatchMode(patchMode, patchRevision, files); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-	} else {
-		if err := app.RunInteractive(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
 	}
 }
 
-func parseFlags() (patchMode, patchRevision string, files []string, err error) {
-	return processArgs(os.Args[1:])
+func run(args []string, in io.Reader, out, errout io.Writer) error {
+	fs := flag.NewFlagSet("jj-patch", flag.ContinueOnError)
+	fs.SetOutput(errout)
+	output := fs.String("output", "", "write a three-directory edit to this directory instead of RIGHT")
+	noInstructions := fs.Bool("no-instructions", false, "treat JJ-INSTRUCTIONS as an ordinary file (use with jj's ui.diff-instructions=false)")
+	context := fs.String("context", "auto", "prompt context: auto, split, commit, diffedit, squash, restore, absorb, generic")
+	version := fs.Bool("version", false, "print version")
+	fs.Usage = func() {
+		fmt.Fprintln(errout, "Usage: jj-patch [--output OUTPUT] [--context CONTEXT] LEFT RIGHT\n\nA git-add-p-style diff editor for jj. Configure ui.diff-editor = \"jj-patch\".\nSelect changes with y/n; q saves selections; Q or EOF aborts without saving.")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if *version {
+		v := "devel"
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				v = info.Main.Version
+			}
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					v += " " + setting.Value
+				}
+			}
+		}
+		fmt.Fprintln(out, "jj-patch", v)
+		return nil
+	}
+	if fs.NArg() != 2 {
+		fs.Usage()
+		return errors.New("expected LEFT and RIGHT directories")
+	}
+	if _, err := promptContext(*context, ""); err != nil {
+		return err
+	}
+	s, err := edit.OpenWithOptions(fs.Arg(0), fs.Arg(1), *output, edit.Options{Instructions: !*noInstructions})
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	phrase, err := promptContext(*context, s.Instructions)
+	if err != nil {
+		return err
+	}
+	if err := prompt.Run(s, in, out, phrase); err != nil {
+		return err
+	}
+	return s.Write()
 }
 
-func processArgs(args []string) (patchMode, patchRevision string, files []string, err error) {
-	var patchFlag string
-	var patchProvided bool
-
-	// Create a new flag set to avoid conflicts with testing
-	fs := flag.NewFlagSet("git-add--interactive", flag.ContinueOnError)
-	fs.StringVar(&patchFlag, "patch", "", "enable patch mode (stage, reset, checkout, worktree, stash)")
-
-	// Disable default error output from flag parsing
-	fs.SetOutput(&nullWriter{})
-
-	// Parse arguments
-	err = fs.Parse(args)
-	if err != nil {
-		// Convert flag errors to our expected format
-		if strings.Contains(err.Error(), "flag provided but not defined") {
-			return "", "", nil, fmt.Errorf("unknown option: %s", extractUnknownFlag(err.Error()))
-		}
-		return "", "", nil, err
-	}
-
-	// Check if --patch flag was provided (even without value)
-	for _, arg := range args {
-		if arg == "--patch" || strings.HasPrefix(arg, "--patch=") {
-			patchProvided = true
-			break
-		}
-	}
-
-	// Get remaining arguments (files/paths)
-	remaining := fs.Args()
-
-	// Handle the case where we have paths without --patch (assume stage mode)
-	if !patchProvided && len(remaining) > 0 {
-		// Check if first arg is "--" (interactive mode with paths)
-		if len(remaining) > 0 && remaining[0] == "--" {
-			return "", "", remaining[1:], nil
-		}
-		// Otherwise assume stage mode with paths
-		return "stage", "", remaining, nil
-	}
-
-	// Handle --patch flag
-	if patchProvided {
-		// Special case: if patchFlag is "--", it means --patch was followed by --
-		if patchFlag == "--" {
-			patchFlag = ""
-		}
-
-		// Check if -- was present in original args
-		hasSeparator := false
-		for _, arg := range args {
-			if arg == "--" {
-				hasSeparator = true
-				break
+// JJ-INSTRUCTIONS is human-readable, not a stable command identifier. Unknown
+// instructions deliberately get a generic prompt rather than a guessed action.
+func promptContext(context, instructions string) (string, error) {
+	if context == "auto" {
+		// Strip only jj's known three-pane wrapper. Commit descriptions can
+		// contain arbitrary text, including other command preambles.
+		if strings.HasPrefix(instructions, "Please make your edits in this pane.\n\n") ||
+			strings.HasPrefix(instructions, "The content of this pane should NOT be edited.") {
+			const end = "diff editing in mind and be a little inaccurate.\n\n"
+			if _, body, ok := strings.Cut(instructions, end); ok {
+				instructions = body
 			}
 		}
-
-		// Validate that -- separator is present for certain modes
-		if err := validatePatchMode(patchFlag, remaining, args); err != nil {
-			return "", "", nil, err
-		}
-
-		// Handle different patch modes
-		switch patchFlag {
-		case "", "stage":
-			patchMode = "stage"
-		case "stash":
-			patchMode = "stash"
-		case "reset":
-			patchMode, patchRevision = parsePatchReset(remaining)
-			remaining = skipRevisionAndSeparator(remaining)
-		case "checkout":
-			patchMode, patchRevision = parsePatchCheckout(remaining, hasSeparator)
-			if patchMode != "checkout_index" {
-				remaining = skipRevisionAndSeparator(remaining)
-			}
-		case "worktree":
-			patchMode, patchRevision = parsePatchWorktree(remaining)
-			remaining = skipRevisionAndSeparator(remaining)
+		switch {
+		case strings.HasPrefix(instructions, "You are splitting the working-copy commit:"):
+			context = "commit"
+		case strings.HasPrefix(instructions, "You are splitting a commit into two:"):
+			context = "split"
+		case strings.HasPrefix(instructions, "You are editing changes in:"):
+			context = "diffedit"
+		case strings.HasPrefix(instructions, "You are moving changes from:"):
+			context = "squash"
+		case strings.HasPrefix(instructions, "You are restoring changes from:"):
+			context = "restore"
+		case strings.HasPrefix(instructions, "You are selecting changes from:") &&
+			strings.Contains(instructions, "absorption into ancestors."):
+			context = "absorb"
 		default:
-			return "", "", nil, fmt.Errorf("unknown --patch mode: %s", patchFlag)
-		}
-
-		// Skip "--" separator if present
-		if len(remaining) > 0 && remaining[0] == "--" {
-			remaining = remaining[1:]
-		}
-
-		return patchMode, patchRevision, remaining, nil
-	}
-
-	// No patch mode, remaining args after "--" are files for interactive mode
-	if len(remaining) > 0 && remaining[0] == "--" {
-		return "", "", remaining[1:], nil
-	}
-
-	return "", "", nil, nil
-}
-
-// nullWriter discards all writes (used to suppress flag error output)
-type nullWriter struct{}
-
-func (nw *nullWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func extractUnknownFlag(errMsg string) string {
-	// Extract flag name from error message like "flag provided but not defined: -unknown"
-	parts := strings.Split(errMsg, ": ")
-	if len(parts) > 1 {
-		return parts[1]
-	}
-	return "unknown"
-}
-
-func validatePatchMode(mode string, remaining []string, originalArgs []string) error {
-	// Check if -- was present in original args
-	hasSeparator := false
-	for _, arg := range originalArgs {
-		if arg == "--" {
-			hasSeparator = true
-			break
+			context = "generic"
 		}
 	}
-
-	switch mode {
-	case "":
-		// Basic --patch requires --
-		if !hasSeparator {
-			return fmt.Errorf("expected '--' after --patch")
-		}
-		// Check for invalid separator case: --patch not-dash-dash
-		for i, arg := range originalArgs {
-			if arg == "--patch" && i+1 < len(originalArgs) && originalArgs[i+1] != "--" {
-				return fmt.Errorf("expected '--' after --patch")
-			}
-		}
-	case "reset":
-		// --patch=reset requires --
-		if !hasSeparator {
-			return fmt.Errorf("expected '--' after --patch=reset")
-		}
-	case "checkout":
-		// --patch=checkout requires --
-		if !hasSeparator {
-			return fmt.Errorf("expected '--' after --patch=checkout")
-		}
+	switch context {
+	case "split", "commit":
+		return "in the first change", nil
+	case "diffedit":
+		return "in the edited change", nil
+	case "squash":
+		return "to move to the destination", nil
+	case "restore":
+		return "to restore", nil
+	case "absorb":
+		return "for absorption into ancestors", nil
+	case "generic":
+		return "in the result", nil
+	default:
+		return "", fmt.Errorf("unknown context %q", context)
 	}
-	return nil
-}
-
-func parsePatchReset(args []string) (mode, revision string) {
-	if len(args) == 0 || args[0] == "--" {
-		return "reset_head", "HEAD"
-	}
-
-	revision = args[0]
-	if revision == "HEAD" {
-		return "reset_head", revision
-	}
-	return "reset_nothead", revision
-}
-
-func parsePatchCheckout(args []string, hasSeparator bool) (mode, revision string) {
-	if len(args) == 0 || args[0] == "--" {
-		return "checkout_index", ""
-	}
-
-	// When there's a separator, we need to be careful about what we treat as a revision
-	// vs a pathspec. Common pathspecs start with special characters or look like paths
-	if hasSeparator {
-		firstArg := args[0]
-		// Check if the first argument looks like a pathspec rather than a revision
-		if strings.HasPrefix(firstArg, ":") || // pathspec magic like :(prefix:0)
-			strings.HasSuffix(firstArg, "/") || // directory paths
-			strings.Contains(firstArg, "*") || // glob patterns
-			strings.Contains(firstArg, "?") { // glob patterns
-			return "checkout_index", ""
-		}
-		// If it doesn't look like a pathspec and we have multiple args,
-		// treat the first as a revision
-		if len(args) > 1 {
-			revision = firstArg
-			if revision == "HEAD" {
-				return "checkout_head", revision
-			}
-			return "checkout_nothead", revision
-		}
-		// Single argument that doesn't look like a pathspec - could be a revision
-		// but let's be conservative and treat it as a pathspec for checkout_index
-		return "checkout_index", ""
-	}
-
-	revision = args[0]
-	if revision == "HEAD" {
-		return "checkout_head", revision
-	}
-	return "checkout_nothead", revision
-}
-
-func parsePatchWorktree(args []string) (mode, revision string) {
-	if len(args) == 0 || args[0] == "--" {
-		return "checkout_index", ""
-	}
-
-	revision = args[0]
-	if revision == "HEAD" {
-		return "worktree_head", revision
-	}
-	return "worktree_nothead", revision
-}
-
-func skipRevisionAndSeparator(args []string) []string {
-	if len(args) == 0 {
-		return args
-	}
-
-	// Skip the revision if it's not "--"
-	if args[0] != "--" && len(args) > 0 {
-		args = args[1:]
-	}
-
-	return args
 }

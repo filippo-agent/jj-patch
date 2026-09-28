@@ -1,0 +1,72 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.24.x'
+          cache: false
+      - name: Install jj
+        shell: bash
+        run: |
+          set -euo pipefail
+          # SHA-256 digests from the jj-vcs/jj v0.45.1 release assets API.
+          # Detect the host instead of assuming a *-latest runner architecture.
+          case "$(uname -s):$(uname -m)" in
+            Linux:x86_64)
+              target=x86_64-unknown-linux-musl
+              sha256=f35438350b5d61963aac5dd74ede510b31d6b9690769d1a6268cf058cc825f72 ;;
+            Linux:aarch64|Linux:arm64)
+              target=aarch64-unknown-linux-musl
+              sha256=7349a43dd5a20dbc998b10114daa0ee63d2ab863fb822c7eb6b0ebca5903cc69 ;;
+            Darwin:x86_64)
+              target=x86_64-apple-darwin
+              sha256=6171582d0b5a98a1005cd9643faebff7936812ec264d7968a39d9cef3654a99b ;;
+            Darwin:arm64|Darwin:aarch64)
+              target=aarch64-apple-darwin
+              sha256=51ba42e3d0682616f6eb015045bfe45289b396f03511f9897f645ce8e9272743 ;;
+            *)
+              echo "Unsupported jj runner: $(uname -s) $(uname -m)" >&2
+              exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/jj.tar.gz"
+          curl --fail --location --retry 3 \
+            "https://github.com/jj-vcs/jj/releases/download/v0.45.1/jj-v0.45.1-${target}.tar.gz" \
+            -o "$archive"
+          # Python is available on both runners; no GNU sha256sum dependency.
+          python3 - "$archive" "$sha256" <<'PY'
+          import hashlib
+          import sys
+          digest = hashlib.sha256()
+          with open(sys.argv[1], "rb") as archive:
+              for chunk in iter(lambda: archive.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          actual = digest.hexdigest()
+          if actual != sys.argv[2]:
+              sys.exit(f"jj archive SHA-256 mismatch: expected {sys.argv[2]}, got {actual}")
+          print(f"Verified jj archive SHA-256: {actual}")
+          PY
+          mkdir -p "$RUNNER_TEMP/jj-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/jj-bin" ./jj
+          echo "$RUNNER_TEMP/jj-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/jj-bin/jj" --version
+      - name: Show runtime tools
+        run: |
+          uname -sm
+          go version
+          jj --version
+          python3 --version
+          git --version
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build -o jj-patch .
+      - run: python3 -m unittest discover -s integration -v

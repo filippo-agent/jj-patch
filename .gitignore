@@ -1,0 +1,5 @@
+/jj-patch
+__pycache__/
+*.test
+/coverage.out
+/integration/test-results.log
