@@ -111,13 +111,21 @@ func TestRoundTripMatrix(t *testing.T) {
 		{"dir-to-file", tree{"a/b/c": regular("old\n")}, tree{"a": regular("new\n")}},
 		{"symlink-to-dir", tree{"a": link("../escape")}, tree{"a/b": regular("new\n")}},
 		{"dir-to-symlink", tree{"a/b": regular("old\n")}, tree{"a": link("../escape")}},
-		{"odd-paths", tree{"-leading": regular("before\n"), "a\nb\t\"\\": regular("before\n"), "\xff\xfe": regular("before\n")}, tree{"-leading": regular("after\n"), "a\nb\t\"\\": regular("after\n"), "\xff\xfe": regular("after\n"), ":(glob)*": regular("literal")}},
+		{"odd-paths", tree{"-leading": regular("before\n"), "a\nb\t\"\\": regular("before\n")}, tree{"-leading": regular("after\n"), "a\nb\t\"\\": regular("after\n"), ":(glob)*": regular("literal")}},
 		{"missing-newline", tree{"a": regular("old"), "b": regular("old\n"), "c": regular("x")}, tree{"a": regular("new\n"), "b": regular("new"), "c": regular("y")}},
 		{"crlf", tree{"a": regular("old\r\nkeep\r\n")}, tree{"a": regular("new\r\nkeep\r\n")}},
 		{"long-lines", tree{"a": regular(strings.Repeat("a", 300000) + "\n")}, tree{"a": regular(strings.Repeat("b", 300000))}},
 		{"non-utf8-content", tree{"a": regular("\xff\xfeold\n")}, tree{"a": regular("\xfe\xffnew\n")}},
 		{"attributes", tree{".gitattributes": regular("* binary\n* filter=evil\n"), "a": regular("old\n")}, tree{".gitattributes": regular("* binary\n* filter=evil\n"), "a": regular("new\n")}},
 		{"real-instructions", tree{"JJ-INSTRUCTIONS": regular("real old\n"), "d/JJ-INSTRUCTIONS": regular("nested old\n")}, tree{"JJ-INSTRUCTIONS": regular("real new\n"), "d/JJ-INSTRUCTIONS": regular("nested new\n")}},
+	}
+	if runtime.GOOS == "linux" {
+		// APFS rejects invalid UTF-8 filenames at creation (EILSEQ). Test
+		// these on Linux; both platforms still test non-UTF-8 file contents.
+		cases = append(cases, struct {
+			name string
+			a, b tree
+		}{"non-utf8-paths", tree{"\xff\xfe": regular("before\n")}, tree{"\xff\xfe": regular("after\n")}})
 	}
 	for _, tc := range cases {
 		for _, three := range []bool{false, true} {
