@@ -451,10 +451,18 @@ func TestInstructions(t *testing.T) {
 		}
 		assertTree(t, out, tree{"a": regular("old\n"), "JJ-INSTRUCTIONS": regular(synthetic)})
 	}
-	// A real tracked file remains selectable, even if its content looks synthetic.
+	// A tracked path replaced by instructions is ambiguous: jj may have put
+	// help over a deletion, then remove even a real restored file after exit.
 	a, b := tree{"JJ-INSTRUCTIONS": regular("tracked\n")}, tree{"JJ-INSTRUCTIONS": regular(synthetic)}
 	l, r, o := roots(t, a, b, true)
-	s := openSession(t, l, r, o)
+	if _, err := Open(l, r, o); err == nil || !strings.Contains(err.Error(), "ui.diff-instructions=false") {
+		t.Fatalf("ambiguous instruction collision did not fail closed: %v", err)
+	}
+	assertUntouched(t, l, r, o, a, b)
+	// Explicit opt-out supports genuine instruction-like user data.
+	s, err := OpenWithOptions(l, r, o, Options{Instructions: false})
+	must(t, err)
+	t.Cleanup(func() { must(t, s.Close()) })
 	if s.Instructions != "" || len(s.Files) != 1 {
 		t.Fatal("lost real instruction file")
 	}
@@ -810,6 +818,33 @@ func TestInstructionDetectionOptOut(t *testing.T) {
 				want = real
 			}
 			assertTree(t, out, want)
+		}
+	}
+}
+
+func TestDeletedInstructionPathCollision(t *testing.T) {
+	for _, old := range []tree{
+		{"JJ-INSTRUCTIONS": regular("real contents\n")},
+		{"JJ-INSTRUCTIONS": link("elsewhere")},
+		{"JJ-INSTRUCTIONS/readme": regular("real directory\n")},
+	} {
+		for _, three := range []bool{false, true} {
+			candidate := tree{"JJ-INSTRUCTIONS": regular(synthetic)}
+			l, r, o := roots(t, old, candidate, three)
+			if _, err := Open(l, r, o); err == nil || !strings.Contains(err.Error(), "collides") {
+				t.Fatalf("did not reject deletion hidden by instructions: %v", err)
+			}
+			assertUntouched(t, l, r, o, old, candidate)
+			// With instruction generation disabled by jj there is no fake
+			// right entry; rejecting the deletion must restore the real path.
+			l, r, o = roots(t, old, tree{}, three)
+			s := openSession(t, l, r, o)
+			must(t, s.Write())
+			out := o
+			if out == "" {
+				out = r
+			}
+			assertTree(t, out, old)
 		}
 	}
 }

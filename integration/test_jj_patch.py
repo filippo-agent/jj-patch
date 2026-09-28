@@ -454,6 +454,31 @@ class WorkflowTests:
         self.edit("diffedit", input=b"q\n")
         self.assert_tree(BASE, disk=True)
 
+    def test_deleted_instructions_path_collision_and_recovery(self):
+        parent = {**BASE, "JJ-INSTRUCTIONS": (REGULAR, b"real versioned instructions\n")}
+        self.write_tree(parent)
+        self.jj("describe", "-m", "versioned instruction file")
+        self.jj("new", "-m", "delete instruction file")
+        (self.repo / "JJ-INSTRUCTIONS").unlink()
+        self.snapshot()
+        before = self.commit_id()
+        if self.instructions:
+            # jj has overwritten the deleted path with generated help and will
+            # remove it after tool exit. Silently restoring the left file here
+            # would lose the user's choice: fail before jj snapshots anything.
+            result = self.edit("diffedit", input=b"q\n", check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b"ui.diff-instructions=false", result.stderr)
+            self.assertEqual(self.commit_id(), before)
+            self.assert_tree(BASE, disk=True)
+            self.configure(instructions=False)
+        self.edit("diffedit", input=b"q\n")
+        self.assert_tree(parent, disk=True)
+        (self.repo / "JJ-INSTRUCTIONS").unlink()
+        self.snapshot()
+        self.edit("diffedit", input=b"A\n")
+        self.assert_tree(BASE, disk=True)
+
     def test_preexisting_private_git_index_is_untouched(self):
         self.git("read-tree", self.base_id)
         index = (self.gitdir / "index").read_bytes()

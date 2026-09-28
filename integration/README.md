@@ -122,6 +122,8 @@ Every `WorkflowTests` case runs in all four combinations:
   abort preserves conflict. Compare explicit resolved-side `--from`, since a
   merge compared with its merged-parent tree can have no changes.
 - Empty `diffedit` succeeds without input.
+- Deletion of a real `JJ-INSTRUCTIONS`: generated-help collisions fail safely;
+  disabling jj's instructions permits both accepting and rejecting the deletion.
 
 Additional tests cover all eight explicit contexts (`auto`, `split`,
 `diffedit`, `squash`, `restore`, `commit`, `absorb`, `generic`) in both transports with
@@ -151,14 +153,16 @@ ordinary Git blobs.
 
 ## Deliberate limits
 
-- Linux/POSIX symlink, executable and PTY behavior; no Windows claim.
+- Linux/macOS symlink, executable and PTY behavior; no Windows claim.
 - No file-by-file mode (the tool's interface under test is directory mode),
   merge-editor protocol, Git submodules, filesystem races, disk-full failures,
   hardlink/xattr preservation, or extremely large files.
 - Conflict coverage is accept-all and cancellation, not arbitrary partial
   conflict-marker surgery or conflict resolution UI.
-- Context overrides test interface acceptance, success and cancellation, not
-  exact human-facing prompt prose. Auto context is exercised through real jj
+- The general context matrix tests interface acceptance, success and
+  cancellation. Only scoped split/generic and explicit absorb cases assert
+  human-facing prompt phrases; the rest do not depend on exact prose.
+  Auto context is exercised through real jj
   instructions; instruction-free behavior has the same selection semantics.
 - Relocation/multi-source topology and PTY tests run in the default transport;
   every normal family and file-edge case runs in the four-way matrix.
@@ -170,7 +174,6 @@ ordinary Git blobs.
 
 ## Recorded execution
 
-On September 28, 2026, all **202 tests passed** against jj 0.45.1 on Linux,
-including both PTY cases and the complete four-way matrix. `FINDINGS.md` records
-the exact tested binary versions/hash and runtime. This count includes unittest
-methods; cancellation/context matrices also contain additional subtests.
+See [FINDINGS.md](FINDINGS.md) for native Linux/macOS runs and their source
+revisions. Counts include unittest methods; cancellation/context matrices also
+contain additional subtests.

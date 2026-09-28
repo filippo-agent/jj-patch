@@ -110,6 +110,13 @@ file with that name prevents synthetic creation. In three-way mode the output
 and right messages have different preambles. jj removes its own generated output
 message before snapshotting, but genuine user files must be preserved.
 
+Deletion is a special collision: when a versioned `JJ-INSTRUCTIONS` disappears
+on the right, jj can create help at the vacant path. Its later cleanup also
+removes a real file that the editor restored to reject the deletion. The tool
+fails closed on this ambiguity, before jj snapshots a misleading selection;
+retrying with `ui.diff-instructions=false` restores normal selection semantics.
+Unit and real-jj tests cover the failure and recovery.
+
 [The implementation](../internal/edit/instructions.go) recognizes known prose
 only for an eligible root regular file absent from left, preserves generated
 output instructions byte-for-byte, and treats unknown formats as data. For an
@@ -169,8 +176,8 @@ output changes, safe terminal rendering and shared-input regression. The
 families, two/three-directory transports, instructions on/off, relocation,
 multi-source squash, absorb's unassignable changes, and colocated-repository
 safety. [CI](../.github/workflows/test.yml) defines Linux/macOS runs against pinned
-jj v0.45.1. These are coverage/source observations: consult the actual test run
-for pass/fail; an earlier 202-case run exposed the stdin regression above.
+jj v0.45.1. See [verification results](../integration/FINDINGS.md) for execution
+results; the initial runs exposed the stdin regression above.
 
 Remaining deliberate limits include **singleKey**, dedicated undo history,
 custom key maps, file-by-file/merge-editor protocols, general multi-way commit

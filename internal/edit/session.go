@@ -133,8 +133,25 @@ func OpenWithOptions(left, right, output string, options Options) (_ *Session, e
 	if err != nil {
 		return nil, err
 	}
-	// Never classify a tracked left-side file as synthetic, even if it happens to
-	// contain an instruction preamble. Only the root regular file is eligible.
+	// When JJ-INSTRUCTIONS itself was deleted, jj may create its help at that
+	// now-vacant path and unconditionally remove it after this tool exits. It
+	// would also remove a real file restored by rejecting the deletion. The
+	// protocol cannot distinguish that case from instruction-like user data:
+	// fail closed and ask the caller to disable instructions before checkout.
+	if s.instructions {
+		candidate, hasCandidate := s.right[instructionsName]
+		initial, hasInitial := s.initial[instructionsName]
+		looksSynthetic := (hasCandidate && !candidate.link && IsInstructions(candidate.data)) ||
+			(hasInitial && !initial.link && IsInstructions(initial.data))
+		if looksSynthetic {
+			for path := range s.left {
+				if path == instructionsName || strings.HasPrefix(path, instructionsName+string(filepath.Separator)) {
+					return nil, fmt.Errorf("JJ-INSTRUCTIONS collides with a versioned path; retry with jj's ui.diff-instructions=false and use --no-instructions for instruction-like user data")
+				}
+			}
+		}
+	}
+	// Only a root regular file absent from the baseline is eligible.
 	if _, tracked := s.left[instructionsName]; s.instructions && !tracked {
 		if e, ok := s.right[instructionsName]; ok && !e.link && IsInstructions(e.data) {
 			s.Instructions = string(e.data)

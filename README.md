@@ -19,7 +19,7 @@ Put Go's bin directory on your `PATH`, then add to your jj config:
 diff-editor = "jj-patch"
 ```
 
-Use `jj split`, `jj diffedit`, `jj commit -i`, `jj squash -i`, or
+Use `jj split`, `jj diffedit`, `jj commit -i`, `jj squash -i`,
 `jj restore -i`, or `jj absorb -i` as usual.
 
 ## Picking changes
@@ -34,7 +34,7 @@ for `jj diffedit`, they are the changes to keep.
 | `a` / `d` | Include / exclude the remaining hunks in this file |
 | `q` | Save selections so far; exclude undecided hunks |
 | `Q` | Abort without saving |
-| `s` / `S` | Split this hunk / enable automatic splitting |
+| `s` / `S` | Split this hunk / split all hunks as far as possible |
 | `e` | Edit this hunk using `$VISUAL` or `$EDITOR` |
 | `j` / `k` | Next / previous undecided hunk |
 | `J` / `K` | Next / previous hunk, including decided ones |
@@ -83,8 +83,11 @@ Use directory invocation (jj's default), not file-by-file mode.
 
 ### Instruction-file collisions
 
-Ordinary files named `JJ-INSTRUCTIONS` remain selectable. If you're adding one
-whose contents imitate jj's generated instructions, disable the heuristic:
+Ordinary files named `JJ-INSTRUCTIONS` remain selectable. If you're deleting one,
+jj can put its help at that path and later remove even a file you chose to keep.
+The tool detects this collision and stops rather than silently losing a choice.
+Disable jj's instructions to edit that deletion. Also disable recognition when
+adding or editing a file whose contents imitate jj's generated instructions:
 
 ```toml
 [ui]

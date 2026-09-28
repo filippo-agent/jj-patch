@@ -1,29 +1,31 @@
-# Integration execution
+# Verification
 
-On September 28, 2026:
+Tests use jj **0.45.1** (`7c41cdeb16b6b321c64e789a966b6adf723816a5`).
+The [workflow](../.github/workflows/test.yml) runs Go race tests, vet, a build,
+and the full real-jj suite natively on Linux and macOS.
 
-```text
-python3 -m unittest discover -s integration -v
-Ran 202 tests in 81.873s
-OK
-```
+On September 28, 2026, [CI run 36431283979](https://github.com/filippo-agent/jj-patch/actions/runs/36431283979)
+passed on both platforms at `4f1fae892e110b19d7e20743aff226a555a20f73`:
+**204 integration tests per platform**, including both PTY cases and the
+four-way directory/instruction matrix. The macOS run used arm64, Go 1.24.13,
+and Python 3.14.7; its integration suite took 237 seconds.
 
-- jj: `0.45.1-7c41cdeb16b6b321c64e789a966b6adf723816a5`
-- jj-patch: `v0.5.0+dirty 03992e245cbef929e1ad7c30a6d8f43e89647e9d`
-- Tested binary SHA-256:
-  `fa657bdf3e6d8ea297dd98c85e01c7a7421cbd8ad33365ad41d691f0ffdb1514`
+Four subsequent regression cases exercise a jj protocol collision when deleting
+a real `JJ-INSTRUCTIONS` file. They verify safe rejection with generated help
+enabled, then successful accept/reject choices with instructions disabled.
+The suite now contains 208 tests; see subsequent workflow runs for those results.
 
-All 202 tests passed, including four transport/instruction combinations, eight
-explicit contexts, actual tree/mode/content assertions, cancellation/EOF,
-existing private and colocated Git index checks, and two controlling-PTY tests.
-The raw log is generated as `test-results.log` and ignored by Git.
+Earlier failures exposed missing commit/absorb instruction recognition and stdin
+read-ahead across repeated squash editor invocations. Regression cases cover both.
+The suite also verifies that command-scoped split prompts work through aliases
+without changing the prompt used by diffedit.
 
-Earlier failures exposed generated instruction detection for commit/absorb and
-stdin read-ahead across multiple squash editor invocations. Both regressions
-now pass. Filtered `A` is tested as an immediate save with no extra `q`.
-No failures are hidden with expectedFailure or implementation-dependent skips.
+Engine tests include deterministic randomized full/none and split-subset oracles.
+A local 15-second parser fuzz run completed over one million executions without
+failure. Native macOS testing exposed APFS's refusal to create invalid UTF-8
+filenames; those names are tested on Linux. Both platforms test non-UTF-8 file
+contents, binary data, and other unusual representable names.
 
-The full source-pinned workflow inventory, tested features, and deliberate
-coverage limits are in README.md. This is a Linux/POSIX execution result, not a
-macOS/Windows certification. No implementation files were edited by this test
-work, and no commit was made.
+See [README.md](README.md) for the source-pinned command inventory, assertions,
+and coverage limits. No Windows support, universal filesystem certification,
+or arbitrary partial conflict-resolution guarantee is implied.
