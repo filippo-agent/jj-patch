@@ -160,7 +160,7 @@ ordinary Git blobs.
 - Conflict coverage is accept-all and cancellation, not arbitrary partial
   conflict-marker surgery or conflict resolution UI.
 - The general context matrix tests interface acceptance, success and
-  cancellation. Only scoped split/generic and explicit absorb cases assert
+  cancellation. Commit, scoped split/generic, and explicit absorb cases assert
   human-facing prompt phrases; the rest do not depend on exact prose.
   Auto context is exercised through real jj
   instructions; instruction-free behavior has the same selection semantics.

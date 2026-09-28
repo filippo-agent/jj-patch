@@ -11,7 +11,7 @@ import (
 func TestContext(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{
 		{"You are splitting a commit into two: abc", "in the first change"},
-		{"You are splitting the working-copy commit: abc", "in the first change"},
+		{"You are splitting the working-copy commit: abc", "in this commit"},
 		{"Please make your edits in this pane.\n\nYou are using the experimental 3-pane diff editor config. Some of\nthe following instructions may have been written with a 2-pane\ndiff editing in mind and be a little inaccurate.\n\nYou are editing changes in: abc", "in the edited change"},
 		{"You are moving changes from: abc", "to move to the destination"},
 		{"You are restoring changes from: abc", "to restore"},
@@ -27,6 +27,9 @@ func TestContext(t *testing.T) {
 		}
 	}
 	if got, _ := promptContext("split", "You are editing changes in:"); got != "in the first change" {
+		t.Fatal(got)
+	}
+	if got, _ := promptContext("commit", "You are splitting a commit into two: abc"); got != "in this commit" {
 		t.Fatal(got)
 	}
 	if _, err := promptContext("oops", ""); err == nil {

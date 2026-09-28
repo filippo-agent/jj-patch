@@ -331,7 +331,11 @@ class WorkflowTests:
         self.assert_tree(FULL, disk=True)
 
     def test_commit_partial(self):
-        self.edit("commit", "-i", "-m", "selected")
+        result = self.edit("commit", "-i", "-m", "selected")
+        expected = (b"Include this hunk in this commit?" if self.instructions
+                    else b"Include this hunk in the result?")
+        self.assertIn(expected, result.stdout)
+        self.assertNotIn(b"in the first change?", result.stdout)
         self.assert_tree(FIRST, "@-")
         self.assert_tree(FULL, disk=True)
 
@@ -612,7 +616,10 @@ class AdditionalTests(RepositoryCase):
                 with self.subTest(context=mode, three_way=three_way):
                     self.configure(mode, three_way=three_way, instructions=False)
                     self.assert_cancelled(["diffedit"], b"Q\n")
-                    self.edit("diffedit", input=b"A\n")
+                    result = self.edit("diffedit", input=b"A\n")
+                    if mode == "commit":
+                        self.assertIn(b"Include this hunk in this commit?", result.stdout)
+                        self.assertNotIn(b"in the first change?", result.stdout)
                     self.assert_tree(FULL, disk=True)
                     self.assertEqual(self.commit_id(), self.start_id)
 

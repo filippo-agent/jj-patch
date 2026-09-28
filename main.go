@@ -107,8 +107,10 @@ func promptContext(context, instructions string) (string, error) {
 		}
 	}
 	switch context {
-	case "split", "commit":
+	case "split":
 		return "in the first change", nil
+	case "commit":
+		return "in this commit", nil
 	case "diffedit":
 		return "in the edited change", nil
 	case "squash":
